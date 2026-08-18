@@ -580,6 +580,10 @@ class AdminCog(commands.Cog):
             await interaction.response.send_message("Please provide a question.")
             return
 
+        if interaction.guild and getattr(interaction.channel, 'category_id', None) != 1537623610104090624:
+            await interaction.response.send_message("❌ I can only be used in <#1537623610104090624ae >", ephemeral=True)
+            return
+
         await interaction.response.defer()
         
         userID = str(interaction.user.id)
