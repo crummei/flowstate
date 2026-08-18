@@ -266,103 +266,27 @@ async def process_admin_commands(command):
                 
                 action = parts[1].strip()
                 
-                # List all existing instructions
-                if action == "list":
+                # List the current instructions
+                if action in {"list", "show"}:
                     if "instructions" in bot_config and bot_config["instructions"]:
-                        instruction_lines = [
-                            f"{index}. {instruction}" 
-                            for index, instruction in enumerate(bot_config["instructions"], start=1)
-                        ]
-                        formatted_list = "\n".join(instruction_lines)
-                        return logging.INFO, f"\n📜 Current Instructions:\n{formatted_list}"
+                        return logging.INFO, f"\n📜 Current Instructions:\n{bot_config['instructions']}"
                     else:
                         return logging.WARNING, "\n⚠️ There are currently no instructions saved."
 
-                # Experiment, unfinished...
-                # if action == "list":
-                #     if len(parts) > 2 and parts[2].strip() == "selected":
-                #         if "instructions" in bot_config and bot_config["instructions"]:
-                #             instruction_lines = [
-                #                 f"{index}. {instruction}" 
-                #                 for index, instruction in enumerate(bot_config["instructions"], start=1)
-                #             ]
-                #             formatted_list = "\n".join(instruction_lines)
-                #             return logging.INFO, f"\n📜 Current Instructions:\n{formatted_list}"
-                #         else:
-                #             return logging.WARNING, "\n⚠️ There are currently no instructions saved."
-                    
-                #     if len(parts) > 2 and parts[2].strip() == "all":
-                #         if "instructions" in bot_config and bot_config["instructions"]:
-                #             instruction_lines = [
-                #                 f"{index}. {instruction}" 
-                #                 for index, instruction in enumerate(bot_config["instructions"], start=1)
-                #             ]
-                #             formatted_list = "\n".join(instruction_lines)
-                #             return logging.INFO, f"\n📜 Current Instructions:\n{formatted_list}"
-                #         else:
-                #             return logging.WARNING, "\n⚠️ There are currently no instructions saved."     
-                
-                # Delete/remove an instruction
-                elif action in {"delete", "remove"}:
+                # Set the instruction entry entirely
+                elif action == "set":
                     if len(parts) > 2 and parts[2].strip() != "":
-                        try:
-                            index_to_remove = int(parts[2].strip()) - 1
-                            
-                            if "instructions" in bot_config and 0 <= index_to_remove < len(bot_config["instructions"]):
-                                removed_value = bot_config["instructions"].pop(index_to_remove)
-                                await asyncio.to_thread(save_config, bot_config)
-                                return logging.INFO, f"\n🗑️  Removed instruction: Pos. {parts[2].strip()} | {removed_value}"
-                            else:
-                                return logging.WARNING, f"\n❌ No instruction exists in position: {parts[2].strip()}"
-                                
-                        except ValueError:
-                            return logging.WARNING, f"\n❌ Invalid position number: {parts[2].strip()}"
-                    else:
-                        return logging.WARNING, "\n❌ Please provide a position number. Usage: instruct delete <number>"
-
-                # Add an additional instruction entry
-                elif action == "add":
-                    if len(parts) > 2 and parts[2].strip() != "":
-                        if "instructions" not in bot_config:
-                            bot_config["instructions"] = []
-                            
-                        # If it loads as a dictionary, convert to list
-                        elif isinstance(bot_config["instructions"], dict):
-                            bot_config["instructions"] = list(bot_config["instructions"].values())
-                            
-                        new_instruction = parts[2].strip()
-                        bot_config["instructions"].append(new_instruction)
+                        bot_config["instructions"] = parts[2].strip()
                         await asyncio.to_thread(save_config, bot_config)
-                        
-                        new_position = len(bot_config["instructions"])
-                        return logging.INFO, f"\n✅ Added new instruction at Pos. {new_position}: \"{new_instruction}\""
-                        
+                        return logging.INFO, f"\n✅ Updated instructions."
                     else:
-                        return logging.WARNING, "\n❌ Please provide the instruction text. Usage: instruct add <text>"
+                        return logging.WARNING, "\n❌ Please provide the instruction text. Usage: instruct set <text>"
                  
-                # Replace an instruction
-                elif action.isdigit():
-                    if len(parts) > 2 and parts[2].strip() != "":
-                        index_to_replace = int(action) - 1
-                        
-                        if "instructions" in bot_config and 0 <= index_to_replace < len(bot_config["instructions"]):
-                            bot_config["instructions"][index_to_replace] = parts[2].strip()
-                            await asyncio.to_thread(save_config, bot_config)
-                            return logging.INFO, f"\n✅ Switched instruction {action} to: \"{parts[2].strip()}\""
-                        else:
-                            return logging.WARNING, f"\n❌ No instruction exists in position: {action}"
-                    else:
-                        return logging.WARNING, "\n❌ Please provide the replacement text. Usage: instruct <number> <text>"
-                
                 # Catch-all error
                 else:
-                    return logging.WARNING, "\n❌ Invalid command. Usage: instruct [list | add <text> | delete <num> | <num> <text>]"
-        
-        except ValueError:
-            return logging.WARNING, "\n❌ That is not a valid number! Please use digits."
-        
-        except IndexError:
-            return logging.WARNING, "\n❌ You are missing the text. Usage: instruct add <text>"
+                    return logging.WARNING, "\n❌ Invalid command. Usage: instruct [list | show | set <text>]"
+            else:
+                return logging.WARNING, "\n❌ Missing action. Usage: instruct [list | show | set <text>]"
         
         except Exception as e:
             return logging.ERROR, f"\n❌ Something completely unexpected broke: {e}"
