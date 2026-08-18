@@ -530,7 +530,7 @@ async def AIprompt(user_message, allPrompts, allResponses, is_reply_to_bot=False
     
     response_stream = await chatClient.chat.completions.create(
         model=AIprompt.model,
-        temperature=1.3,
+        temperature=bot_config.get('temperature', 0.6),
         messages=messages,
         stream=True,
     )
@@ -640,8 +640,23 @@ Response:
         await asyncio.to_thread(save_history, serverData)
 
     @app_commands.command(name="status", description="Check the bot status")
+    @app_commands.default_permissions(administrator=True)
     async def status_command(self, interaction: discord.Interaction):
         await interaction.response.send_message(f"⚡ Bot is active. Connected as: {self.bot.user}")
+
+    @app_commands.command(name="temperature", description="View or Change the LLM temperature")
+    @app_commands.describe(temp="The new temperature (e.g. 0.6). Leave empty to view current.")
+    @app_commands.default_permissions(administrator=True)
+    async def temperature_command(self, interaction: discord.Interaction, temp: float = None):
+        await interaction.response.defer(ephemeral=True)
+        if temp is None:
+            current_temp = bot_config.get("temperature", 0.6)
+            await interaction.followup.send(f"📋 Current temperature: {current_temp}")
+            return
+            
+        bot_config["temperature"] = temp
+        await asyncio.to_thread(save_config, bot_config)
+        await interaction.followup.send(f"✅ Changed temperature to: {temp}")
 
     @app_commands.command(name="sync", description="Sync slash commands to a specific server, or globally if blank")
     @app_commands.describe(server_id="The ID of the server to sync to (leave blank for global sync)")

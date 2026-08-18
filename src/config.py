@@ -11,7 +11,8 @@ defaults = {
     "delay_per_word": 0.1,
     "human_delay_min": 1.5,
     "human_delay_max": 4.0,
-    "human_wpm": 150
+    "human_wpm": 150,
+    "temperature": 0.6
 }
 
 def load_config():
