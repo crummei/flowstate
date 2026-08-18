@@ -496,6 +496,9 @@ async def AIprompt(user_message, allPrompts, allResponses, is_reply_to_bot=False
     if bot_config.get("instructions"):
         instructions = bot_config["instructions"]
         combined_instructions = "\n".join(instructions) if isinstance(instructions, list) else str(instructions)
+        
+        # Enforce excessive emoji usage
+        combined_instructions += "\n\nIMPORTANT RULE: You MUST use an excessive, absurd amount of emojis in every single response. Pack emojis into every single sentence. 🚀🔥🚗⚽"
 
         if combined_instructions.strip():
             messages.append({
