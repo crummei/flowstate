@@ -6,7 +6,6 @@ import asyncio
 
 from src.config import load_config, save_config
 from src.history_manager import load_history, save_history
-import src.data.sheetsapi
 
 class AdminCog(commands.Cog):
     def __init__(self, bot):
@@ -19,7 +18,7 @@ class AdminCog(commands.Cog):
     @app_commands.command(name="model", description="View or Change the current LLM model")
     @app_commands.describe(model_name="The name of the model to use (leave empty to view current)")
     async def model_command(self, interaction: discord.Interaction, model_name: str = None):
-        from src.main import bot_config # Import here to avoid circular imports if needed, or reload config
+        from src.main import bot_config
         bot_config = load_config()
         is_localhost = bot_config.get("is_localhost")
         
@@ -58,13 +57,6 @@ class AdminCog(commands.Cog):
             await interaction.response.send_message(f"✅ Now using localhost LLM")
         else:
             await interaction.response.send_message(f"✅ Now using API LLM: {bot_config.get('API_model', {})}")
-
-    @app_commands.command(name="reload_sheets", description="Reload Google Sheets data")
-    async def reload_sheets_command(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        from src.main import AIprompt
-        AIprompt.instructionsDict = await asyncio.to_thread(src.data.sheetsapi.main)
-        await interaction.followup.send("✅ Sheets data reloaded!")
 
 async def setup(bot):
     await bot.add_cog(AdminCog(bot))

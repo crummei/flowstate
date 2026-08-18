@@ -37,6 +37,8 @@ account_lists = bot_config.get("account_lists", {})
 from dotenv import load_dotenv # python-dotenv
 load_dotenv(ENV_PATH)
 
+from src.websearch import get_search_query, perform_web_search
+
 # llama-3.3-70b-versatile
 # llama-3.1-8b-instant
 
@@ -568,6 +570,13 @@ async def AIprompt(user_message, allPrompts, allResponses, is_reply_to_bot=False
             'role': 'assistant',
             'content': reference_msg.content
         })
+
+    # Check if we need to search the web
+    search_query = await get_search_query(user_message, chatClient, is_localhost)
+    if search_query:
+        logging.info(f"🔎 Web search required for query: {search_query}")
+        search_context = await perform_web_search(search_query)
+        user_message = f"Web Search Context:\n{search_context}\n\nUser: {user_message}"
 
     messages.append({
         'role': 'user',
