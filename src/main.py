@@ -172,6 +172,26 @@ def normalize_command(raw: str) -> str:
     parts[0] = parts[0].lower()
     return " ".join(parts)
 
+def chunk_text(text: str, chunk_size: int = 2000) -> list[str]:
+    chunks = []
+    while len(text) > chunk_size:
+        # Try to find a newline within the chunk limit
+        split_idx = text.rfind('\n', 0, chunk_size)
+        if split_idx == -1:
+            # Try space if no newline
+            split_idx = text.rfind(' ', 0, chunk_size)
+            if split_idx == -1:
+                # Hard split if no space
+                split_idx = chunk_size
+                
+        chunks.append(text[:split_idx].strip())
+        text = text[split_idx:].strip()
+        
+    if text:
+        chunks.append(text.strip())
+        
+    return chunks
+
 
 # -----------------------------
 #            Processing
@@ -586,13 +606,16 @@ class AdminCog(commands.Cog):
             await interaction.followup.send("AI returned an empty response.")
             return
 
-        # Cap message length for Discord limits (2000 chars max)
-        if len(response) > 2000:
-            chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
+        full_message = f"**Question:**\n{question}\n\n**Response:**\n{response}"
+
+        # Cap message length for Discord limits (2000 chars max) intelligently
+        if len(full_message) > 2000:
+            chunks = chunk_text(full_message, 2000)
             for chunk in chunks:
-                await interaction.followup.send(chunk)
+                if chunk:
+                    await interaction.followup.send(chunk)
         else:
-            await interaction.followup.send(response)
+            await interaction.followup.send(full_message)
         
         logging.info(f"""
 ==========================
