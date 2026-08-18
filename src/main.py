@@ -527,10 +527,9 @@ async def AIprompt(user_message, allPrompts, allResponses, is_reply_to_bot=False
         'content': user_message
     })
     
-    # Start chatCompletion with STREAMING ENABLED
     response_stream = await chatClient.chat.completions.create(
         model=AIprompt.model,
-        temperature=0.6,
+        temperature=1.3,
         messages=messages,
         stream=True,
     )
@@ -606,14 +605,17 @@ class AdminCog(commands.Cog):
             await interaction.followup.send("AI returned an empty response.")
             return
 
-        full_message = f"**Question:**\n{question}\n\n**Response:**\n{response}"
+        full_message = f"> **Question:**\n> {question}\n\n**Response:**\n{response}"
 
         # Cap message length for Discord limits (2000 chars max) intelligently
         if len(full_message) > 2000:
             chunks = chunk_text(full_message, 2000)
-            for chunk in chunks:
+            for i, chunk in enumerate(chunks):
                 if chunk:
-                    await interaction.followup.send(chunk)
+                    if i == 0:
+                        await interaction.followup.send(chunk)
+                    else:
+                        await interaction.channel.send(chunk)
         else:
             await interaction.followup.send(full_message)
         
