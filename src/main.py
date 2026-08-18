@@ -575,12 +575,14 @@ class AdminCog(commands.Cog):
     
     @app_commands.command(name="ask", description="Ask Flowstate a question")
     @app_commands.describe(question="Your question")
+    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def ask_command(self, interaction: discord.Interaction, question: str):
         if not question:
             await interaction.response.send_message("Please provide a question.")
             return
 
-        if interaction.guild and getattr(interaction.channel, 'category_id', None) != 1537623610104090624:
+        if interaction.guild and interaction.guild.id == 725629345326170122 and getattr(interaction.channel, 'category_id', None) != 1537623610104090624:
             await interaction.response.send_message("❌ I can only be used in <#1537623610104090624ae >", ephemeral=True)
             return
 
