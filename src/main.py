@@ -495,7 +495,7 @@ async def AIprompt(user_message, allPrompts, allResponses, is_reply_to_bot=False
     
     if bot_config.get("instructions"):
         instructions = bot_config["instructions"]
-        parsed_instructions = "\n".join(instructions) if isinstance(instructions, list) else str(instructions)s
+        parsed_instructions = "\n".join(instructions) if isinstance(instructions, list) else str(instructions)
         
         if parsed_instructions.strip():
             messages.append({
