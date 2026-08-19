@@ -495,12 +495,12 @@ async def AIprompt(user_message, allPrompts, allResponses, is_reply_to_bot=False
     
     if bot_config.get("instructions"):
         instructions = bot_config["instructions"]
-        combined_instructions = "\n".join(instructions) if isinstance(instructions, list) else str(instructions)
+        parsed_instructions = "\n".join(instructions) if isinstance(instructions, list) else str(instructions)s
         
-        if combined_instructions.strip():
+        if parsed_instructions.strip():
             messages.append({
                 'role': 'system',
-                'content': combined_instructions,
+                'content': parsed_instructions,
             })
     
     past_prompts = allPrompts[-3:]
@@ -580,7 +580,7 @@ class AdminCog(commands.Cog):
             return
 
         if interaction.guild and interaction.guild.id == 725629345326170122 and getattr(interaction.channel, 'category_id', None) != 1537623610104090624:
-            await interaction.response.send_message("❌ I can only be used in <#1537623610104090624ae >", ephemeral=True)
+            await interaction.response.send_message("❌ I can only be used in <#1537623610104090624>", ephemeral=True)
             return
 
         await interaction.response.defer()

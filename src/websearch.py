@@ -9,13 +9,12 @@ except ImportError:
     UsageLimitExceededError = Exception
 
 async def get_search_query(user_message: str, client, is_localhost: bool) -> str | None:
-    # Asks a small free model if a web search is needed for the given user_message.
-    # Returns the search query string if needed, otherwise None.
+    # Asks a small free model to extract key components for a web search from the user_message.
+    # Returns the extracted search query string.
     prompt = (
-        "Determine if the following user message requires a web search to be answered accurately "
-        "(e.g., current events, real-time info, specific unknown facts)."
-        "If it does, reply with the optimal search query and nothing else. "
-        "If it does not, reply strictly with the exact word 'NO_SEARCH'.\n\n"
+        "Extract the key components from the following user message to create an optimal web search query. "
+        "Make sure the search is related to the game 'Rocket League' when applicable. "
+        "Reply with the optimal search query and nothing else. Do not answer the user's message, just provide the search query.\n\n"
         f"User message: {user_message}"
     )
 
@@ -42,9 +41,6 @@ async def get_search_query(user_message: str, client, is_localhost: bool) -> str
             _, clean_text = result.split("</think>", 1)
             result = clean_text.strip()
 
-        if result.upper() == "NO_SEARCH" or "NO_SEARCH" in result.upper():
-            return None
-            
         return result
     except Exception as e:
         logging.error(f"Error determining search query: {e}")
