@@ -215,7 +215,8 @@ async def process_admin_commands(command):
 > - localhost | Check current status or Enable/Disable using localhost LLM | Usage: localhost *<True/False>
 > - temperature | View/Change the current LLM temperature | Usage: temperature *<number>
 > - refresh | Refresh the config.json in memory | Usage: refresh
-"""
+> - sync | Sync or clear slash commands globally or to a server | Usage: sync *(clear) *<server_id>
+""" 
 # > - tts | Check current status or Enable/Disable joining VC and speaking the response | Usage: tts *<True/False>
 
 
@@ -378,16 +379,29 @@ async def process_admin_commands(command):
 
     elif command.startswith("sync"):
         try:
-            parts = command.split(" ", 1)
-            if len(parts) > 1 and parts[1].strip():
-                server_id = parts[1].strip()
-                guild = discord.Object(id=int(server_id))
-                bot.tree.copy_global_to(guild=guild)
-                synced = await bot.tree.sync(guild=guild)
-                return logging.INFO, f"\n✅ Synced {len(synced)} commands to server ID {server_id}"
+            parts = command.split()
+            is_clear = "clear" in [p.lower() for p in parts]
+            server_id = next((p for p in parts[1:] if p.lower() != "clear"), None)
+            
+            if is_clear:
+                if server_id:
+                    guild = discord.Object(id=int(server_id))
+                    bot.tree.clear_commands(guild=guild)
+                    await bot.tree.sync(guild=guild)
+                    return logging.INFO, f"\n✅ Cleared synced commands from server ID {server_id}"
+                else:
+                    bot.tree.clear_commands(guild=None)
+                    await bot.tree.sync()
+                    return logging.INFO, f"\n✅ Cleared all global commands"
             else:
-                synced = await bot.tree.sync()
-                return logging.INFO, f"\n✅ Synced {len(synced)} commands globally (may take up to an hour to propagate)"
+                if server_id:
+                    guild = discord.Object(id=int(server_id))
+                    bot.tree.copy_global_to(guild=guild)
+                    synced = await bot.tree.sync(guild=guild)
+                    return logging.INFO, f"\n✅ Synced {len(synced)} commands to server ID {server_id}"
+                else:
+                    synced = await bot.tree.sync()
+                    return logging.INFO, f"\n✅ Synced {len(synced)} commands globally (may take up to an hour to propagate)"
         except Exception as e:
             return logging.ERROR, f"\n❌ Failed to sync: {e}"
     
@@ -687,20 +701,34 @@ Response:
         await asyncio.to_thread(save_config, bot_config)
         await interaction.followup.send(f"✅ Changed temperature to: {temp}")
 
-    @app_commands.command(name="sync", description="Sync slash commands to a specific server, or globally if blank")
-    @app_commands.describe(server_id="The ID of the server to sync to (leave blank for global sync)")
+    @app_commands.command(name="sync", description="Sync or clear slash commands for a specific server, or globally")
+    @app_commands.describe(
+        server_id="The ID of the server (leave blank for global)",
+        clear="Set to True to clear commands instead of syncing them"
+    )
     @app_commands.default_permissions(administrator=True)
-    async def sync_command(self, interaction: discord.Interaction, server_id: str = None):
+    async def sync_command(self, interaction: discord.Interaction, server_id: str = None, clear: bool = False):
         await interaction.response.defer()
         try:
-            if server_id:
-                guild = discord.Object(id=int(server_id))
-                self.bot.tree.copy_global_to(guild=guild)
-                synced = await self.bot.tree.sync(guild=guild)
-                await interaction.followup.send(f"✅ Synced {len(synced)} commands to server ID {server_id}")
+            if clear:
+                if server_id:
+                    guild = discord.Object(id=int(server_id))
+                    self.bot.tree.clear_commands(guild=guild)
+                    await self.bot.tree.sync(guild=guild)
+                    await interaction.followup.send(f"✅ Cleared synced commands from server ID {server_id}")
+                else:
+                    self.bot.tree.clear_commands(guild=None)
+                    await self.bot.tree.sync()
+                    await interaction.followup.send(f"✅ Cleared all global commands (may take up to an hour to propagate)")
             else:
-                synced = await self.bot.tree.sync()
-                await interaction.followup.send(f"✅ Synced {len(synced)} commands globally (may take up to an hour to propagate)")
+                if server_id:
+                    guild = discord.Object(id=int(server_id))
+                    self.bot.tree.copy_global_to(guild=guild)
+                    synced = await self.bot.tree.sync(guild=guild)
+                    await interaction.followup.send(f"✅ Synced {len(synced)} commands to server ID {server_id}")
+                else:
+                    synced = await self.bot.tree.sync()
+                    await interaction.followup.send(f"✅ Synced {len(synced)} commands globally (may take up to an hour to propagate)")
         except Exception as e:
             await interaction.followup.send(f"❌ Failed to sync: {e}")
 
@@ -771,6 +799,7 @@ Response:
 > - /localhost *<True/False> | Check current status or Enable/Disable using localhost LLM
 > - /temperature *<number> | View/Change the current LLM temperature
 > - /refresh | Refresh the config.json in memory
+> - /sync *(clear) *<server_id> | Sync or clear slash commands globally or to a server
 """
         await interaction.followup.send(help_text)
 
