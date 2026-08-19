@@ -198,6 +198,7 @@ def chunk_text(text: str, chunk_size: int = 2000) -> list[str]:
 # -----------------------------
 
 async def process_admin_commands(command):  
+    global bot_config
     if command.startswith("help"):
         try:
             parts = command.split(" ", 1)
@@ -212,6 +213,8 @@ async def process_admin_commands(command):
 > - instruct | View/Change the current instruction set | Usage: instruct (list | add <text> | delete <num> | <num> <text>)
 > - history | Delete history for a specific user/server or all | Usage: history delete (all | user <user_id> | server <server_id>)
 > - localhost | Check current status or Enable/Disable using localhost LLM | Usage: localhost *<True/False>
+> - temperature | View/Change the current LLM temperature | Usage: temperature *<number>
+> - refresh | Refresh the config.json in memory | Usage: refresh
 """
 # > - tts | Check current status or Enable/Disable joining VC and speaking the response | Usage: tts *<True/False>
 
@@ -412,6 +415,26 @@ async def process_admin_commands(command):
     #             return logging.WARNING, f"\n❌ Please provide all arguments. Usage: tts *<True/False>"
     #     except (KeyError, ValueError):
     #         return logging.WARNING, f"\n❌ Please provide all arguments. Usage: tts *<True/False>"
+        
+    elif command.startswith("temperature"):
+        try:
+            parts = command.split(" ", 1)
+            if command.strip() == "temperature":
+                current_temp = bot_config.get("temperature", 0.6)
+                return logging.INFO, f"\n📋 Current temperature: {current_temp}"
+            else:
+                temp = float(parts[1].strip())
+                bot_config["temperature"] = temp
+                await asyncio.to_thread(save_config, bot_config)
+                return logging.INFO, f"\n✅ Changed temperature to: {temp}"
+        except ValueError:
+            return logging.WARNING, "\n❌ Please provide a valid number. Usage: temperature *<number>"
+        except Exception as e:
+            return logging.ERROR, f"\n❌ Something completely unexpected broke: {e}"
+
+    elif command == "refresh":
+        bot_config = load_config()
+        return logging.INFO, "\n✅ Configuration refreshed from config.json"
         
     elif command != "":
         return logging.WARNING, f"\n🤨 Unknown command: {command}"
@@ -724,6 +747,89 @@ Response:
             await interaction.followup.send(f"✅ Now using localhost LLM")
         else:
             await interaction.followup.send(f"✅ Now using API LLM: {bot_config.get('API_MODEL', {})}")
+
+    @app_commands.command(name="refresh", description="Refresh the config.json in memory")
+    @app_commands.default_permissions(administrator=True)
+    async def refresh_command(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        global bot_config
+        bot_config = load_config()
+        await interaction.followup.send("✅ Configuration refreshed from config.json")
+
+    @app_commands.command(name="help", description="Show a list of admin commands and their usage")
+    @app_commands.default_permissions(administrator=True)
+    async def help_command(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        help_text = """
+-# Values marked with * are optional.
+-# Values inside () show a list of choices.
+-# Values inside <> are variables, meant to be filled with the actual data.
+
+> - /model *<model_name> | View/Change the current LLM model
+> - /instruct <action> *<text> | View/Change the current instruction set
+> - /history <target> *<id> | Delete history for a specific user/server or all
+> - /localhost *<True/False> | Check current status or Enable/Disable using localhost LLM
+> - /temperature *<number> | View/Change the current LLM temperature
+> - /refresh | Refresh the config.json in memory
+"""
+        await interaction.followup.send(help_text)
+
+    @app_commands.command(name="instruct", description="View or update the current instruction set")
+    @app_commands.describe(
+        action="What to do with instructions",
+        text="The new instructions text (if setting)"
+    )
+    @app_commands.choices(action=[
+        app_commands.Choice(name='list', value='list'),
+        app_commands.Choice(name='set', value='set')
+    ])
+    @app_commands.default_permissions(administrator=True)
+    async def instruct_command(self, interaction: discord.Interaction, action: app_commands.Choice[str], text: str = None):
+        await interaction.response.defer(ephemeral=True)
+        act = action.value
+        
+        if act == "list":
+            if "instructions" in bot_config and bot_config["instructions"]:
+                await interaction.followup.send(f"📜 Current Instructions:\n{bot_config['instructions']}")
+            else:
+                await interaction.followup.send("⚠️ There are currently no instructions saved.")
+        elif act == "set":
+            if text:
+                bot_config["instructions"] = text
+                await asyncio.to_thread(save_config, bot_config)
+                await interaction.followup.send("✅ Updated instructions.")
+            else:
+                await interaction.followup.send("❌ Please provide the instruction text.")
+
+    @app_commands.command(name="history", description="Delete history for a specific user/server or all")
+    @app_commands.describe(
+        target="What history to clear",
+        target_id="The ID of the user or server (not needed for 'all')"
+    )
+    @app_commands.choices(target=[
+        app_commands.Choice(name='all', value='all'),
+        app_commands.Choice(name='user', value='user'),
+        app_commands.Choice(name='server', value='server')
+    ])
+    @app_commands.default_permissions(administrator=True)
+    async def history_command(self, interaction: discord.Interaction, target: app_commands.Choice[str], target_id: str = None):
+        await interaction.response.defer(ephemeral=True)
+        tgt = target.value
+        
+        if tgt == "all":
+            serverData["user"].clear()
+            serverData["server"].clear()
+            await asyncio.to_thread(save_history, serverData)
+            await interaction.followup.send("✅ Cleared all history!")
+        elif tgt in ["user", "server"]:
+            if target_id:
+                if serverData[tgt].pop(target_id, None):
+                    await asyncio.to_thread(save_history, serverData)
+                    await interaction.followup.send(f"✅ Cleared history for {tgt}: \"{target_id}\"")
+                else:
+                    await interaction.followup.send(f"❌ {tgt.capitalize()} \"{target_id}\" doesn't have history.")
+            else:
+                await interaction.followup.send(f"❌ Please provide a {tgt} ID.")
 
 # -----------------------------
 #         Misc. Start
