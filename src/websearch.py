@@ -8,15 +8,26 @@ except ImportError:
     AsyncTavilyClient = None
     UsageLimitExceededError = Exception
 
-async def get_search_query(user_message: str, client, is_localhost: bool) -> str | None:
+async def get_search_query(user_message: str, client, is_localhost: bool, past_prompts: list = None, past_responses: list = None) -> str | None:
     # Asks a small free model to extract key components for a web search from the user_message.
     # Returns the extracted search query string.
+    past_context = ""
+    if past_prompts and past_responses:
+        past_context = "Conversation History:\n"
+        for p, r in zip(past_prompts, past_responses):
+            past_context += f"User: {p}\nAssistant: {r}\n"
+            
     prompt = (
-        "Extract the key components from the following user message to create an optimal web search query. "
+        "Determine if the user's latest message requires a web search to answer accurately (e.g., looking up current facts, stats, or specific settings). "
+        "If a search is needed, generate an optimal web search query. "
         "Make sure the search is related to the game 'Rocket League' when applicable. "
-        "Reply with the optimal search query and nothing else. Do not answer the user's message, just provide the search query.\n\n"
-        f"User message: {user_message}"
+        "If the user is just conversing, asking for clarification on previous points, or if no search is needed, reply exactly with the word 'NONE'.\n"
+        "Reply ONLY with the search query, or 'NONE'. Do not include quotes or any other text.\n\n"
     )
+    if past_context:
+        prompt += f"{past_context}\n"
+        
+    prompt += f"Latest User message: {user_message}"
 
     try:
         # For localhost, we might just use whatever model is currently loaded.
@@ -40,6 +51,13 @@ async def get_search_query(user_message: str, client, is_localhost: bool) -> str
         if "</think>" in result:
             _, clean_text = result.split("</think>", 1)
             result = clean_text.strip()
+            
+        # Strip any surrounding quotes the model might have added
+        result = result.strip('"\'')
+        logging.info(f"Websearch: {result}")
+        
+        if result.upper() == "NONE":
+            return None
 
         return result
     except Exception as e:
