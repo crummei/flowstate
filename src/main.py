@@ -615,28 +615,39 @@ class AdminCog(commands.Cog):
             await interaction.response.send_message("Please provide a question.")
             return
 
-        if interaction.guild and interaction.guild.id == 725629345326170122 and getattr(interaction.channel, 'category_id', None) != 1537623610104090624:
+        is_collective = getattr(interaction.channel, 'category_id', None) == 1537623610104090624
+
+        if interaction.guild and interaction.guild.id == 725629345326170122 and not is_collective:
             await interaction.response.send_message("❌ I can only be used in <#1537623610104090624>", ephemeral=True)
             return
 
         await interaction.response.defer()
         
-        userID = str(interaction.user.id)
+        if is_collective:
+            # Use collective category history
+            history_key = "1537623610104090624"
+            history_dict = serverData["server"]
+            prompt_text = f"{interaction.user.display_name}: {question}"
+        else:
+            # Use per-user history
+            history_key = str(interaction.user.id)
+            history_dict = serverData["user"]
+            prompt_text = question
         
-        # Initialize user data if it doesn't exist
-        if userID not in serverData["user"]:
-            logging.info(f"Initializing data for {userID}")
-            serverData["user"][userID] = {
+        # Initialize data if it doesn't exist
+        if history_key not in history_dict:
+            logging.info(f"Initializing data for {history_key}")
+            history_dict[history_key] = {
                 'allPrompts': [],
                 'allResponses': [],
             }
 
-        allPrompts = serverData["user"][userID]['allPrompts']
-        allResponses = serverData["user"][userID]['allResponses']
+        allPrompts = history_dict[history_key]['allPrompts']
+        allResponses = history_dict[history_key]['allResponses']
 
         response = ""
         try:
-            stream = AIprompt(question, allPrompts, allResponses)
+            stream = AIprompt(prompt_text, allPrompts, allResponses)
             async for chunk in stream:
                 response += chunk
         except Exception as e:
@@ -648,7 +659,7 @@ class AdminCog(commands.Cog):
             await interaction.followup.send("AI returned an empty response.")
             return
 
-        full_message = f"> **Question:**\n> {question}\n\n**Response:**\n{response}"
+        full_message = f"> **Question:**\n> {prompt_text if is_collective else question}\n\n**Response:**\n{response}"
 
         # Cap message length for Discord limits (2000 chars max) intelligently
         if len(full_message) > 2000:
@@ -665,12 +676,12 @@ class AdminCog(commands.Cog):
         logging.info(f"""
 ==========================
 User:
-{question}
+{prompt_text if is_collective else question}
 
 Response:
 {response}
 ==========================""")
-        allPrompts.append(question)
+        allPrompts.append(prompt_text)
         allResponses.append(response)
         
         # Cap history to prevent memory leaks
