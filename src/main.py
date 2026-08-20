@@ -602,9 +602,103 @@ async def AIprompt(user_message, allPrompts, allResponses, is_reply_to_bot=False
 #       Discord Events
 # -----------------------------
 
+async def process_question(question: str, user, channel, guild, is_reply=False, reference_msg=None, initial_send=None):
+    is_collective = getattr(channel, 'category_id', None) == 1537623610104090624
+
+    if guild and guild.id == 725629345326170122 and not is_collective:
+        await initial_send("❌ I can only be used in <#1537623610104090624>")
+        return
+
+    if is_collective:
+        history_key = "1537623610104090624"
+        history_dict = serverData["server"]
+        prompt_text = f"{user.display_name}: {question}"
+    else:
+        history_key = str(user.id)
+        history_dict = serverData["user"]
+        prompt_text = question
+    
+    if history_key not in history_dict:
+        logging.info(f"Initializing data for {history_key}")
+        history_dict[history_key] = {
+            'allPrompts': [],
+            'allResponses': [],
+        }
+
+    allPrompts = history_dict[history_key]['allPrompts']
+    allResponses = history_dict[history_key]['allResponses']
+
+    response = ""
+    try:
+        stream = AIprompt(prompt_text, allPrompts, allResponses, is_reply_to_bot=is_reply, reference_msg=reference_msg)
+        async for chunk in stream:
+            response += chunk
+    except Exception as e:
+        logging.error(f"Error generating AI response: {e}")
+        await initial_send(f"❌ Error generating response: {e}")
+        return
+
+    if not response:
+        await initial_send("AI returned an empty response.")
+        return
+
+    full_message = f"> **Question:**\n> {prompt_text if is_collective else question}\n\n**Response:**\n{response}"
+
+    if len(full_message) > 2000:
+        chunks = chunk_text(full_message, 2000)
+        for i, chunk in enumerate(chunks):
+            if chunk:
+                if i == 0:
+                    await initial_send(chunk)
+                else:
+                    await channel.send(chunk)
+    else:
+        await initial_send(full_message)
+    
+    logging.info(f"""
+==========================
+User:
+{prompt_text if is_collective else question}
+
+Response:
+{response}
+==========================""")
+    allPrompts.append(prompt_text)
+    allResponses.append(response)
+    
+    MAX_HISTORY = 50
+    if len(allPrompts) > MAX_HISTORY:
+        allPrompts[:] = allPrompts[-MAX_HISTORY:]
+        allResponses[:] = allResponses[-MAX_HISTORY:]
+        
+    await asyncio.to_thread(save_history, serverData)
+
+
 class AdminCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author.bot:
+            return
+
+        if message.reference and message.reference.resolved:
+            reference_msg = message.reference.resolved
+            if reference_msg.author == self.bot.user:
+                async with message.channel.typing():
+                    async def initial_send(content):
+                        await message.reply(content)
+                        
+                    await process_question(
+                        question=message.content,
+                        user=message.author,
+                        channel=message.channel,
+                        guild=message.guild,
+                        is_reply=True,
+                        reference_msg=reference_msg,
+                        initial_send=initial_send
+                    )
     
     @app_commands.command(name="ask", description="Ask Flowstate a question")
     @app_commands.describe(question="Your question")
@@ -623,74 +717,16 @@ class AdminCog(commands.Cog):
 
         await interaction.response.defer()
         
-        if is_collective:
-            # Use collective category history
-            history_key = "1537623610104090624"
-            history_dict = serverData["server"]
-            prompt_text = f"{interaction.user.display_name}: {question}"
-        else:
-            # Use per-user history
-            history_key = str(interaction.user.id)
-            history_dict = serverData["user"]
-            prompt_text = question
-        
-        # Initialize data if it doesn't exist
-        if history_key not in history_dict:
-            logging.info(f"Initializing data for {history_key}")
-            history_dict[history_key] = {
-                'allPrompts': [],
-                'allResponses': [],
-            }
-
-        allPrompts = history_dict[history_key]['allPrompts']
-        allResponses = history_dict[history_key]['allResponses']
-
-        response = ""
-        try:
-            stream = AIprompt(prompt_text, allPrompts, allResponses)
-            async for chunk in stream:
-                response += chunk
-        except Exception as e:
-            logging.error(f"Error generating AI response: {e}")
-            await interaction.followup.send(f"❌ Error generating response: {e}")
-            return
-
-        if not response:
-            await interaction.followup.send("AI returned an empty response.")
-            return
-
-        full_message = f"> **Question:**\n> {prompt_text if is_collective else question}\n\n**Response:**\n{response}"
-
-        # Cap message length for Discord limits (2000 chars max) intelligently
-        if len(full_message) > 2000:
-            chunks = chunk_text(full_message, 2000)
-            for i, chunk in enumerate(chunks):
-                if chunk:
-                    if i == 0:
-                        await interaction.followup.send(chunk)
-                    else:
-                        await interaction.channel.send(chunk)
-        else:
-            await interaction.followup.send(full_message)
-        
-        logging.info(f"""
-==========================
-User:
-{prompt_text if is_collective else question}
-
-Response:
-{response}
-==========================""")
-        allPrompts.append(prompt_text)
-        allResponses.append(response)
-        
-        # Cap history to prevent memory leaks
-        MAX_HISTORY = 50
-        if len(allPrompts) > MAX_HISTORY:
-            allPrompts[:] = allPrompts[-MAX_HISTORY:]
-            allResponses[:] = allResponses[-MAX_HISTORY:]
+        async def initial_send(content):
+            await interaction.followup.send(content)
             
-        await asyncio.to_thread(save_history, serverData)
+        await process_question(
+            question=question,
+            user=interaction.user,
+            channel=interaction.channel,
+            guild=interaction.guild,
+            initial_send=initial_send
+        )
 
     @app_commands.command(name="status", description="Check the bot status")
     @app_commands.default_permissions(administrator=True)
