@@ -556,7 +556,6 @@ async def AIprompt(user_message, allPrompts, allResponses, is_reply_to_bot=False
     # Check if we need to search the web
     search_query = await get_search_query(user_message, chatClient, is_localhost, past_prompts, past_responses)
     if search_query:
-        logging.info(f"🔎 Web search required for query: {search_query}")
         search_context = await perform_web_search(search_query)
         user_message = f"Web Search Context:\n{search_context}\n\nUser: {user_message}"
 

@@ -54,7 +54,7 @@ async def get_search_query(user_message: str, client, is_localhost: bool, past_p
             
         # Strip any surrounding quotes the model might have added
         result = result.strip('"\'')
-        logging.info(f"Websearch: {result}")
+        logging.info(f"🔎 Web search for query: {result}")
         
         if result.upper() == "NONE":
             return None
