@@ -199,7 +199,7 @@ def chunk_text(text: str, chunk_size: int = 2000) -> list[str]:
 # -----------------------------
 
 async def process_admin_commands(command):  
-    global bot_config
+    global bot_config, bot_personalities
     if command.startswith("help"):
         try:
             parts = command.split(" ", 1)
@@ -467,7 +467,6 @@ async def process_admin_commands(command):
             return logging.ERROR, f"\n❌ Something completely unexpected broke: {e}"
 
     elif command == "refresh":
-        global bot_personalities
         bot_config = load_config()
         bot_personalities = load_personalities()
         return logging.INFO, "\n✅ Configuration refreshed from config.json"
