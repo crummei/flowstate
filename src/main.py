@@ -30,8 +30,9 @@ from src.paths import SRC_DIR, DATA_DIR, ENV_PATH
 # model_path = os.path.join(DATA_DIR, "kokoro-v1.0.fp16.onnx")
 # voices_path = os.path.join(DATA_DIR, "voices-v1.0.bin")
 
-from src.config import load_config, save_config
+from src.config import load_config, save_config, load_personalities, save_personalities
 bot_config = load_config()
+bot_personalities = load_personalities()
 account_lists = bot_config.get("account_lists", {})
 
 from dotenv import load_dotenv # python-dotenv
@@ -211,6 +212,7 @@ async def process_admin_commands(command):
 
 > - model | View/Change the current LLM model | Usage: model *<model_name>
 > - instruct | View/Change the current instruction set | Usage: instruct (list | add <text> | delete <num> | <num> <text>)
+> - personality | Toggle between instruction sets | Usage: personality *<name>
 > - history | Delete history for a specific user/server or all | Usage: history delete (all | user <user_id> | server <server_id>)
 > - localhost | Check current status or Enable/Disable using localhost LLM | Usage: localhost *<True/False>
 > - temperature | View/Change the current LLM temperature | Usage: temperature *<number>
@@ -312,6 +314,24 @@ async def process_admin_commands(command):
             else:
                 return logging.WARNING, "\n❌ Missing action. Usage: instruct [list | show | set <text>]"
         
+        except Exception as e:
+            return logging.ERROR, f"\n❌ Something completely unexpected broke: {e}"
+
+    elif command.startswith("personality"):
+        try:
+            parts = command.split(" ", 1)
+            
+            if command.strip() == "personality":
+                return logging.INFO, f"\n📋 Available personalities: {', '.join(bot_personalities.keys())}"
+                
+            arg = parts[1].strip()
+            
+            if arg in bot_personalities:
+                bot_config["instructions"] = bot_personalities[arg]
+                await asyncio.to_thread(save_config, bot_config)
+                return logging.INFO, f"\n✅ Loaded personality: {arg}"
+            else:
+                return logging.WARNING, f"\n❌ Personality '{arg}' not found. Available: {', '.join(bot_personalities.keys())}"
         except Exception as e:
             return logging.ERROR, f"\n❌ Something completely unexpected broke: {e}"
 
@@ -447,7 +467,9 @@ async def process_admin_commands(command):
             return logging.ERROR, f"\n❌ Something completely unexpected broke: {e}"
 
     elif command == "refresh":
+        global bot_personalities
         bot_config = load_config()
+        bot_personalities = load_personalities()
         return logging.INFO, "\n✅ Configuration refreshed from config.json"
         
     elif command != "":
@@ -826,8 +848,9 @@ class AdminCog(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     async def refresh_command(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        global bot_config
+        global bot_config, bot_personalities
         bot_config = load_config()
+        bot_personalities = load_personalities()
         await interaction.followup.send("✅ Configuration refreshed from config.json")
 
     @app_commands.command(name="help", description="Show a list of admin commands and their usage")
@@ -841,6 +864,7 @@ class AdminCog(commands.Cog):
 
 > - /model *<model_name> | View/Change the current LLM model
 > - /instruct <action> *<text> | View/Change the current instruction set
+> - /personality *<name> | Toggle between instruction sets
 > - /history <target> *<id> | Delete history for a specific user/server or all
 > - /localhost *<True/False> | Check current status or Enable/Disable using localhost LLM
 > - /temperature *<number> | View/Change the current LLM temperature
@@ -875,6 +899,22 @@ class AdminCog(commands.Cog):
                 await interaction.followup.send("✅ Updated instructions.")
             else:
                 await interaction.followup.send("❌ Please provide the instruction text.")
+
+    @app_commands.command(name="personality", description="Toggle between instruction sets (personalities)")
+    @app_commands.describe(name="The name of the personality to use (leave empty to list available)")
+    @app_commands.default_permissions(administrator=True)
+    async def personality_command(self, interaction: discord.Interaction, name: str = None):
+        await interaction.response.defer(ephemeral=True)
+        if not name:
+            await interaction.followup.send(f"📋 Available personalities: {', '.join(bot_personalities.keys())}")
+            return
+            
+        if name in bot_personalities:
+            bot_config["instructions"] = bot_personalities[name]
+            await asyncio.to_thread(save_config, bot_config)
+            await interaction.followup.send(f"✅ Loaded personality: {name}")
+        else:
+            await interaction.followup.send(f"❌ Personality '{name}' not found. Available: {', '.join(bot_personalities.keys())}")
 
     @app_commands.command(name="history", description="Delete history for a specific user/server or all")
     @app_commands.describe(
